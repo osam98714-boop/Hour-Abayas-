@@ -1,14 +1,78 @@
 # حور | HOUR ABAYAS
 
-React / Express / tRPC / Drizzle starter, adapted from the Sandbox web-db-user template.
+متجر عربي RTL لعرض عبايات النساء والأطفال، بطلب ضيف ومخزون لكل مقاس ولوحة إدارة خاصة. بُنيت الملفات لتكون قابلة للنشر على Vercel؛ **لم يُنشأ مشروع Vercel أو Neon أو Vercel Blob ولم يُنشر الموقع**. لا توجد منتجات أو طلبات تجريبية في قاعدة البيانات، ولا توجد بوابة دفع إلكتروني.
 
-- `pnpm dev`: development server; honors `PORT` (default 3000).
-- `pnpm build` / `pnpm start`: build and serve `dist/index.js` and `dist/public/`.
-- `pnpm db:migrate`: apply checked-in migrations. `pnpm db:push`: generate and apply new schema changes.
-- `pnpm check` / `pnpm test`: types and application tests.
+## الحالة الحالية وما يلزم قبل البيع
 
-Start with the Webdev skill's default-template guide. Platform login, storage, payments and service contracts live in its shared references; read the relevant capability before extending its helper.
+- تشمل الملفات واجهة المتجر والكتالوج والسلة والطلب والإدارة. اجتازت 19 اختبار وحدة محليًا وفحص TypeScript وبناء Vercel، واستجاب محليًا كل من `/manus-routes.json` و`/api/health` برمز HTTP 200. لم يُختبر تدفق متجر فعلي عبر Neon وBlob أو OAuth لأن موارد Vercel لم تُوصّل بعد.
+- لتشغيل قاعدة بيانات مشتركة، اربطي مشروع Vercel بقاعدة PostgreSQL من Neon وأضيفي عنوان اتصالها كمتغير `DATABASE_URL` (أو `NEON_DATABASE_URL`). لن يعتمد التطبيق على MySQL الخاص بمعاينة Manus.
+- لرفع الصور، أنشئي مخزني Vercel Blob منفصلين: مخزنًا عامًا للمنتجات ومخزنًا خاصًا للتقييمات. اضبطي بادئة متغيرات المخزن العام إلى `PRODUCT_BLOB` والخاص إلى `REVIEW_BLOB`، بحيث يتوفر `PRODUCT_BLOB_READ_WRITE_TOKEN` و`REVIEW_BLOB_READ_WRITE_TOKEN`. صور المنتجات عامة لعرض الكتالوج؛ صور التقييم تُرفع بصلاحية خاصة وتُعرض للمدير قبل الاعتماد وللزوار بعد اعتماد التقييم فقط.
+- دخول لوحة الإدارة يستخدم Manus OAuth. يتطلب ذلك قيمًا صحيحة معتمدة من موفّر المصادقة في `MANUS_PROJECT_ID`, `MANUS_OAUTH_PORTAL_URL`, `MANUS_OAUTH_API_URL`, `MANUS_JWT_SECRET`، ومعرّف مالك المتجر في `OWNER_OPEN_ID`. أضيفي عنوان callback الآتي لدى موفّر OAuth بعد معرفة نطاقك النهائي: `https://YOUR-VERCEL-DOMAIN/api/oauth/callback`.
+- لا تنتقل صلاحية إدارة إلى زائر أو عميل؛ الحساب المطابق لـ`OWNER_OPEN_ID` فقط يُمنح دور المدير.
+- أضيفي منتجات حور الحقيقية وصورها وأسعارها ومخزون كل مقاس وروابط التواصل من لوحة الإدارة. لا تُعرض صور أو منتجات تجريبية.
+- سياسة Vercel تقيّد خطة Hobby بالاستخدام الشخصي غير التجاري؛ بيع المنتجات يتطلب خطة تجارية مناسبة مثل Pro أو Enterprise. الأسعار والحدود قابلة للتغيير، لذا راجعي المصادر الرسمية أدناه قبل تفعيل أي موارد.
+- رسوم التوصيل تبدأ من 15 ر.س. للتوصيل داخل مكة وقد تزيد حسب المسافة؛ يعيد المدير تحديد الرسوم النهائية. استلام الطلب من المنزل مجاني.
 
-`server/_core/publicConfig.ts` exposes only named public runtime values. Private keys stay server-side. The platform serves managed `/manus-storage/` assets; the application does not register a second proxy.
+## إعداد Vercel
 
-Platform configuration is readable and editable through `webdev.config`. Default settings are initial values, not enforced constraints. The agent may modify the files, commands and configuration or follow the flexible guide for another stack.
+1. فكّي ضغط الحزمة، ثم اربطي المشروع بمستودع Git في Vercel أو انشري مجلد المشروع عبر Vercel CLI بعد تسجيل الدخول. اختاري جذر هذا المجلد بوصفه جذر المشروع (Project Root).
+2. يضبط `vercel.json` أمر البناء `pnpm build:vercel`، ومجلد النشر `public`، ويضم ملفات `public/**` إلى وظيفة Express. يستخدم Vercel نقطة الدخول `index.ts`، بينما يُنشأ المخرج الثابت عبر `scripts/build-vercel.mjs`.
+3. أنشئي/اربطي مشروع Neon ومخزني Vercel Blob (عام للمنتجات وخاص للتقييمات) عبر لوحة Vercel أو التكاملات التي تختارينها. اضبطي بادئة المتغيرات كما ورد أعلاه. لم يُنشأ أي مورد نيابةً عنك.
+4. أضيفي الأسرار المطلوبة في **Project Settings → Environment Variables**، وليس في Git. راجعي `.env.example` للأسماء فقط. لا تضعي قيمًا سرية في متغيرات `VITE_*` أو في الشيفرة أو ملفات Git.
+5. اضبطي Manus OAuth callback إلى نطاق الإنتاج ونطاق المعاينة الذي ستستخدمينه، إن كان موفّر OAuth يسمح بذلك. إذا لم يسمح، يلزم اختيار موفّر مصادقة متوافق بموافقة منفصلة قبل استخدام الإدارة.
+6. ملفات الترحيلات الحالية مرفقة بالحزمة. راجعيها ثم طبّقيها على قاعدة Neon منفصلة للاختبار/المعاينة أولًا بالخطوة التالية؛ لا تعيدي توليدها إلا بعد تعديل مخطط البيانات عمدًا.
+
+## الترحيلات والبيانات
+
+- لإنشاء ملفات SQL من المخطط المحلي: `pnpm db:generate`. يستخدم الأمر عنوانًا وهميًا عند عدم وجود `NEON_DATABASE_URL` ولا يكتب إلى أي قاعدة.
+- أمر تطبيق الترحيلات محمي عمدًا ويتطلب PostgreSQL صالحًا وموافقة بيئية صريحة: عيّني `CONFIRM_NEON_MIGRATIONS=1` بعد مراجعة عنوان الهدف ثم شغّلي `pnpm db:migrate`. في Bash:
+
+  ```sh
+  CONFIRM_NEON_MIGRATIONS=1 pnpm db:migrate
+  ```
+
+  وفي PowerShell:
+
+  ```powershell
+  $env:CONFIRM_NEON_MIGRATIONS="1"
+  pnpm db:migrate
+  ```
+
+- **لا تشغّلي الترحيلات على قاعدة إنتاج مشتركة للاختبار.** اختبري أولًا في مشروع/قاعدة معاينة منفصلة، وبعد مراجعة النسخة الاحتياطية وسياسة الاحتفاظ بالبيانات.
+- لا تُخزَّن المنتجات أو الطلبات في `localStorage`. السلة فقط مؤقتة في ذاكرة التبويب، وقد تُفرغ عند إعادة تحميل الصفحة.
+- الطلب يسجل المنتجات والمقاسات والأسعار التي يعيد الخادم التحقق منها عند إنشاء الطلب. يبقى الطلب «جديدًا/بانتظار التأكيد» من دون حجز المخزون؛ عند اعتماد المدير له يعيد الخادم فحص التوفر ويخصم الكمية داخل معاملة PostgreSQL، وإذا نفد المقاس لا يكتمل التأكيد. تُحدّ طلبات الضيف إلى 3 لكل IP كل 15 دقيقة، و8 لكل IP يوميًا، و3 لكل رقم هاتف يوميًا، و100 طلب يوميًا للمتجر. عند إلغاء طلب سبق تأكيده يعاد المخزون في معاملة واحدة؛ الطلب الملغي أو المكتمل لا يمكن إعادة فتحه، والطلب الملغي قبل تأكيده لا يغيّر المخزون. يُمنع تعديل أو حذف منتج مرتبط بطلب جديد أو نشط حتى يكتمل الطلب أو يُلغى، منعًا لتغيير المقاس أو المخزون أثناء معالجته.
+- المراجعات غير منشورة حتى يعتمدها المدير. صور التقييمات تُرفع خاصةً إلى Blob عبر مسار خادمي بعد فحص النوع والحجم، بحد أقصى 4 ميبيبايت للصورة كي تبقى ضمن حد جسم الطلب لوظيفة Vercel. لا يمكن الوصول للصورة المعلقة إلا للمدير المخوّل، وتظهر للعامة بعد الاعتماد فقط. الحصص: 6 صور خلال 15 دقيقة لكل عنوان و20 يوميًا لكل عنوان، مع حد عام 25 صورة يوميًا للمتجر. تُحفظ بصمة HMAC للـIP في حصص الصور، وللـIP ورقم الهاتف في حصص الطلبات؛ لا يُخزن عنوان IP الخام في جدول الحصص. تُنظف سجلات الحصص التي تجاوزت سبعة أيام عند ورود طلبات عامة كتنظيف best-effort؛ لا توجد جدولة مستقلة تضمن موعد الحذف في هذه الحزمة.
+
+## التطوير والفحوصات
+
+يتطلب Node.js وpnpm متوافقين مع `package.json` وملف `pnpm-lock.yaml`.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+أوامر الفحص والبناء:
+
+```sh
+pnpm check
+pnpm test
+pnpm build:vercel
+```
+
+البناء المحلي ينتج الموقع الثابت داخل `public/`، ويُتجاهل هذا المجلد في Git لأنه ناتج مولّد. معاينة Manus قد لا تتصل بالخدمات الخارجية ما دامت قيم Vercel غير متوفرة؛ عندها تعرض الواجهة حالات إعداد/كتالوج فارغ ولا تحفظ طلبات.
+
+## تنبيه التكاليف والاستضافة
+
+هذه الحزمة **ليست نشرًا مباشرًا ولا تفعيلًا لخدمات مدفوعة**. قبل إتاحة المتجر للبيع، تحققي من السعر التجاري لخطة Vercel والضرائب والحدود الحالية، وحدود Neon وBlob ورسوم الاستخدام بعد تجاوزها.
+
+- [سياسة Vercel للاستخدام العادل والخطط](https://vercel.com/docs/limits/fair-use-guidelines)
+- [أسعار Vercel](https://vercel.com/pricing)
+- [أسعار Neon](https://neon.tech/pricing)
+- [تسعير Vercel Blob](https://vercel.com/docs/vercel-blob/usage-and-pricing)
+- [وثائق Vercel Express](https://vercel.com/docs/frameworks/backend/express)
+- [إعداد Vercel Functions وملفاتها](https://vercel.com/docs/project-configuration/vercel-json)
+- [تخزين Vercel Blob الخاص وعرض ملفاته عبر الخادم](https://vercel.com/docs/vercel-blob/private-storage)
+- [الرفع المباشر من العميل وحد 4.5 ميغابايت](https://vercel.com/docs/vercel-blob/client-upload)
+
+لا يتضمن المشروع دفعًا إلكترونيًا، ولا يدّعي جاهزية البيع قبل توصيل الخدمات، وإعداد OAuth، وإضافة بيانات وصور حقيقية، والتحقق من سياسة التوصيل وبيانات النشاط ومتطلبات البيع المحلية.

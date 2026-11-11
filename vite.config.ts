@@ -79,7 +79,7 @@ function vitePluginManusDebugCollector(): Plugin {
     name: "manus-debug-collector",
 
     transformIndexHtml(html) {
-      if (process.env.NODE_ENV === "production") {
+      if (process.env.NODE_ENV === "production" || process.env.VERCEL_BUILD === "1" || process.env.VERCEL === "1") {
         return html;
       }
       return {
@@ -169,6 +169,7 @@ function vitePluginPublicPlatformConfig(): Plugin {
 }
 
 const plugins = [vitePluginPublicPlatformConfig(), react(), tailwindcss(), jsxLocPlugin(), vitePluginManusDebugCollector()];
+const vercelBuild = process.env.VERCEL_BUILD === "1" || process.env.VERCEL === "1";
 
 export default defineConfig({
   plugins,
@@ -183,7 +184,7 @@ export default defineConfig({
   root: path.resolve(import.meta.dirname, "client"),
   publicDir: path.resolve(import.meta.dirname, "client", "public"),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    outDir: path.resolve(import.meta.dirname, vercelBuild ? "public" : "dist/public"),
     emptyOutDir: true,
   },
   server: {

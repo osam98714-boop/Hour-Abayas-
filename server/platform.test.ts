@@ -3,8 +3,9 @@ import { publicPlatformConfig, publicPlatformScript } from "./_core/publicConfig
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import { listLLMModels } from "./_core/llm";
-import { generateImage } from "./_core/imageGeneration";
-import { COOKIE_NAME } from "../shared/const";
+import { storagePut } from "./storage";
+import { COOKIE_NAME, LOCAL_OAUTH_STATE_COOKIE, OAUTH_STATE_COOKIE } from "../shared/const";
+import { getOAuthStateCookieName } from "./_core/cookies";
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("current platform integration", () => {
@@ -20,28 +21,36 @@ describe("current platform integration", () => {
     new Function("window", "document", publicPlatformScript({}))({}, fakeDocument);
     expect(appended).toHaveLength(0);
   });
+  it("omits Manus proxy values from external Vercel builds", () => {
+    const config = publicPlatformConfig({
+      VERCEL_BUILD: "1",
+      MANUS_PROJECT_ID: "project-test",
+      MANUS_OAUTH_PORTAL_URL: "https://auth.example",
+      MANUS_API_URL: "https://forge.manus.ai",
+      MANUS_API_BROWSER_KEY: "must-not-ship",
+    });
+    expect(config).toMatchObject({ projectId: "project-test", oauthPortalUrl: "https://auth.example", apiUrl: "", apiBrowserKey: "" });
+    expect(publicPlatformScript({ VERCEL: "1", MANUS_API_BROWSER_KEY: "must-not-ship" })).not.toContain("must-not-ship");
+  });
   it("does not guess a production API when the project environment is absent", async () => {
     vi.stubEnv("MANUS_API_URL", ""); vi.stubEnv("MANUS_API_KEY", "test-only");
     const request = vi.fn(); vi.stubGlobal("fetch", request);
     await expect(listLLMModels()).rejects.toThrow("MANUS_API_URL");
     expect(request).not.toHaveBeenCalled();
   });
-  it("persists URL-only image results through current managed storage", async () => {
-    vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
-    const request = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ image: { url: "https://image.example/result.png", mimeType: "image/png" } })))
-      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ url: "https://upload.example/object" })))
-      .mockResolvedValueOnce(new Response(""));
-    vi.stubGlobal("fetch", request);
-    const image = await generateImage({ prompt: "test", originalImages: [] });
-    expect(image.url).toMatch(/^\/manus-storage\/generated\//);
-    expect(request).toHaveBeenCalledTimes(4);
-    expect(JSON.parse(request.mock.calls[0][1].body)).toHaveProperty("originalImages");
+  it("refuses a server-side Blob upload when Vercel storage is not configured", async () => {
+    vi.stubEnv("PRODUCT_BLOB_READ_WRITE_TOKEN", "");
+    await expect(storagePut("products/test-image.jpg", Buffer.from([1, 2, 3]), "image/jpeg"))
+      .rejects.toThrow("Vercel Blob is not configured");
   });
   it("uses a distinct secure app cookie behind the HTTPS Preview proxy", () => {
     expect(COOKIE_NAME).not.toBe("app_session_id");
-    expect(getSessionCookieOptions({ protocol: "http", headers: {} } as never)).toMatchObject({ secure: true, httpOnly: true, sameSite: "none" });
+    const previewRequest = { protocol: "http", hostname: "project.manuspre.computer", headers: {} } as never;
+    const localRequest = { protocol: "http", hostname: "localhost", headers: {} } as never;
+    expect(getSessionCookieOptions(previewRequest)).toMatchObject({ secure: true, httpOnly: true, sameSite: "none" });
+    expect(getSessionCookieOptions(localRequest)).toMatchObject({ secure: false, httpOnly: true, sameSite: "lax" });
+    expect(getOAuthStateCookieName(previewRequest)).toBe(OAUTH_STATE_COOKIE);
+    expect(getOAuthStateCookieName(localRequest)).toBe(LOCAL_OAUTH_STATE_COOKIE);
   });
   it("binds signed app sessions to this project and accepts an empty display name", async () => {
     vi.stubEnv("MANUS_PROJECT_ID", "project-test");
