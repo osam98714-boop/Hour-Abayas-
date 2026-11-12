@@ -16,7 +16,7 @@
 ## إعداد Vercel
 
 1. فكّي ضغط الحزمة، ثم اربطي المشروع بمستودع Git في Vercel أو انشري مجلد المشروع عبر Vercel CLI بعد تسجيل الدخول. اختاري جذر هذا المجلد بوصفه جذر المشروع (Project Root).
-2. يضبط `vercel.json` أمر البناء `pnpm build:vercel` ومجلد النشر `public`. وظيفة `api/index.ts` تشغّل Express لمسارات `/api/*`، وتحافظ على المسار والاستعلام الأصليين بعد rewrite. كما تعيد rewrites صفحات `/admin` و`/women` و`/kids` و`/product/:id` و`/cart` و`/checkout` و`/404` إلى `index.html` كي تعمل عند فتح الرابط مباشرة. لا تضعي fallback عامًا قبل قاعدة `/api/*`.
+2. يضبط `vercel.json` أمر البناء `pnpm build:vercel` ومجلد النشر `public`. ينشئ الأمر `dist/vercel-entry.js` كحزمة ESM تضم وحدات Express المحلية؛ وتعيد وظيفة `api/index.js` تصديرها لخدمة `/api/*`. يحافظ adapter على المسار والاستعلام الأصليين بعد rewrite. كما تعيد rewrites صفحات `/admin` و`/women` و`/kids` و`/product/:id` و`/cart` و`/checkout` و`/404` إلى `index.html` كي تعمل عند فتح الرابط مباشرة. لا تضعي fallback عامًا قبل قاعدة `/api/*`.
 3. مشروع Vercel الحالي لديه أسماء متغيرات `DATABASE_URL` و`PRODUCT_BLOB_*` و`REVIEW_BLOB_*` في إعدادات البيئة. تأكدي من ربطها بالخدمات الصحيحة ومن اختيار Production/Preview المناسبين؛ لا تنشئي موارد مكررة لمجرد أن أسماء المتغيرات موجودة.
 4. أضيفي الأسرار المطلوبة في **Project Settings → Environment Variables**، وليس في Git. راجعي `.env.example` للأسماء فقط. لا تضعي قيمًا سرية في متغيرات `VITE_*` أو في الشيفرة أو ملفات Git.
 5. اضبطي Manus OAuth callback إلى نطاق الإنتاج ونطاق المعاينة الذي ستستخدمينه، إن كان موفّر OAuth يسمح بذلك. إذا لم يسمح، يلزم اختيار موفّر مصادقة متوافق بموافقة منفصلة قبل استخدام الإدارة.

@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
-import { createApp } from "../server/_core/app";
-import { restoreVercelApiRequestUrl } from "../server/_core/vercelApiPath";
+import { createApp } from "./_core/app";
+import { restoreVercelApiRequestUrl } from "./_core/vercelApiPath";
 
 const app = createApp();
 
