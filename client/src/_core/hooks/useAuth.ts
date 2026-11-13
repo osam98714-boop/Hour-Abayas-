@@ -1,5 +1,4 @@
 import { trpc } from "@/lib/trpc";
-import { TRPCClientError } from "@trpc/client";
 import { useCallback } from "react";
 
 type UseAuthOptions = {
@@ -13,15 +12,9 @@ export function useAuth(_options?: UseAuthOptions) {
   const logoutMutation = trpc.auth.logout.useMutation({ onSuccess: () => utils.auth.me.setData(undefined, null) });
 
   const logout = useCallback(async () => {
-    try {
-      await logoutMutation.mutateAsync();
-    } catch (error: unknown) {
-      if (!(error instanceof TRPCClientError) || error.data?.code !== "UNAUTHORIZED") throw error;
-    } finally {
-      try { sessionStorage.removeItem("manus-cookie"); } catch { /* storage may be unavailable */ }
-      utils.auth.me.setData(undefined, null);
-      await utils.auth.me.invalidate();
-    }
+    await logoutMutation.mutateAsync();
+    utils.auth.me.setData(undefined, null);
+    await utils.auth.me.invalidate();
   }, [logoutMutation, utils]);
 
   return {

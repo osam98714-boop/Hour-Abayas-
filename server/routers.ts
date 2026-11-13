@@ -1,10 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { COOKIE_NAME } from "@shared/const";
+import { ADMIN_SESSION_COOKIE } from "@shared/const";
 import * as data from "./store-data";
 import { isPostgresDatabaseConfigured } from "./db";
 import { deleteStoredImages } from "./storage";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { ADMIN_SESSION_TTL_MS, createAdminSessionToken, hasAdminLoginConfiguration, verifyAdminCredentials } from "./_core/adminAuth";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, publicProcedure, router } from "./_core/trpc";
 import { hashRateLimitSubject, normalizePhoneNumber, rateLimitBuckets } from "./public-rate-limits";
@@ -73,9 +74,24 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(({ ctx }) => ctx.user),
+    login: publicProcedure.input(z.object({
+      username: z.string().min(1).max(128),
+      password: z.string().min(1).max(256),
+    })).mutation(async ({ ctx, input }) => {
+      const username = verifyAdminCredentials(input.username, input.password);
+      if (!username) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "اسم المستخدم أو كلمة المرور غير صحيحة." });
+      }
+      const token = await createAdminSessionToken(username);
+      ctx.res.cookie(ADMIN_SESSION_COOKIE, token, {
+        ...getSessionCookieOptions(ctx.req),
+        maxAge: ADMIN_SESSION_TTL_MS,
+      });
+      return { success: true } as const;
+    }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      ctx.res.clearCookie(ADMIN_SESSION_COOKIE, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
   }),
@@ -84,7 +100,7 @@ export const appRouter = router({
       databaseConfigured: isPostgresDatabaseConfigured(),
       orderProtectionConfigured: Boolean(process.env.MANUS_JWT_SECRET),
       blobConfigured: Boolean(process.env.PRODUCT_BLOB_READ_WRITE_TOKEN && process.env.REVIEW_BLOB_READ_WRITE_TOKEN),
-      oauthConfigured: Boolean(process.env.MANUS_PROJECT_ID && process.env.MANUS_OAUTH_PORTAL_URL && process.env.MANUS_OAUTH_API_URL && process.env.MANUS_JWT_SECRET && process.env.OWNER_OPEN_ID),
+      adminLoginConfigured: hasAdminLoginConfiguration(),
     })),
     products: router({
       list: publicProcedure

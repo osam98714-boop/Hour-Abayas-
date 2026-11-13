@@ -1,9 +1,12 @@
 import type { User } from "../../drizzle/schema";
 
 export function isCurrentOwner(
-  user: Pick<User, "openId" | "role"> | null | undefined,
-  configuredOwnerId = process.env.OWNER_OPEN_ID,
+  user: Pick<User, "id" | "openId" | "loginMethod" | "role"> | null | undefined,
 ): boolean {
-  const expectedOwnerId = configuredOwnerId?.trim();
-  return Boolean(expectedOwnerId && user && user.role === "admin" && user.openId === expectedOwnerId);
+  return Boolean(
+    user?.role === "admin" &&
+    user.id === -1 &&
+    user.loginMethod === "environment" &&
+    user.openId.startsWith("hour-admin:"),
+  );
 }

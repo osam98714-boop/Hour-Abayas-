@@ -1,5 +1,4 @@
 import { trpc } from "@/lib/trpc";
-import { COOKIE_NAME } from "@shared/const";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 import { createRoot } from "react-dom/client";
@@ -29,22 +28,6 @@ const trpcClient = trpc.createClient({
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
-      headers() {
-        // Manus Preview may mirror its session into sessionStorage when a mobile
-        // WebView blocks cross-site cookies. Vercel visitors use normal cookies.
-        try {
-          const raw = sessionStorage.getItem("manus-cookie");
-          if (raw) {
-            const prefix = `${COOKIE_NAME}=`;
-            const pair = raw.split(";").find((part) => part.trim().startsWith(prefix));
-            const token = pair?.trim().slice(prefix.length);
-            if (token) return { Authorization: `Bearer ${token}` };
-          }
-        } catch {
-          // sessionStorage can be unavailable in privacy-restricted browsers.
-        }
-        return {};
-      },
       fetch(input, init) {
         return globalThis.fetch(input, { ...(init ?? {}), credentials: "include" });
       },

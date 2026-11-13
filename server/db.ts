@@ -46,14 +46,12 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!db) throw new Error("Neon PostgreSQL is not configured");
 
   const now = new Date();
-  const configuredOwnerId = process.env.OWNER_OPEN_ID?.trim();
-  const shouldBeAdmin = Boolean(configuredOwnerId && user.openId === configuredOwnerId);
   const values: InsertUser = {
     openId: user.openId,
     name: user.name ?? null,
     email: user.email ?? null,
     loginMethod: user.loginMethod ?? null,
-    role: shouldBeAdmin ? "admin" : "user",
+    role: "user",
     lastSignedIn: user.lastSignedIn ?? now,
     updatedAt: now,
   };

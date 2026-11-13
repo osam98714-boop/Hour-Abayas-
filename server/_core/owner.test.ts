@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { isCurrentOwner } from "./owner";
 
-describe("current store owner authorization", () => {
-  it("allows only the configured owner with the admin role", () => {
-    expect(isCurrentOwner({ openId: "owner-1", role: "admin" }, "owner-1")).toBe(true);
-    expect(isCurrentOwner({ openId: "other-admin", role: "admin" }, "owner-1")).toBe(false);
-    expect(isCurrentOwner({ openId: "owner-1", role: "user" }, "owner-1")).toBe(false);
+describe("store admin authorization", () => {
+  it("allows only the verified environment-backed admin session", () => {
+    expect(isCurrentOwner({ id: -1, openId: "hour-admin:verified", loginMethod: "environment", role: "admin" })).toBe(true);
+    expect(isCurrentOwner({ id: 7, openId: "old-manus-user", loginMethod: "manus", role: "admin" })).toBe(false);
+    expect(isCurrentOwner({ id: -1, openId: "hour-admin:verified", loginMethod: "environment", role: "user" })).toBe(false);
   });
 
-  it("fails closed when the owner is not configured or the user is absent", () => {
-    expect(isCurrentOwner({ openId: "owner-1", role: "admin" }, "")).toBe(false);
-    expect(isCurrentOwner(null, "owner-1")).toBe(false);
+  it("fails closed when the user is absent or lacks the complete admin identity", () => {
+    expect(isCurrentOwner(null)).toBe(false);
+    expect(isCurrentOwner({ id: -1, openId: "hour-admin:verified", loginMethod: null, role: "admin" })).toBe(false);
   });
 });

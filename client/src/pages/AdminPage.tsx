@@ -1,7 +1,6 @@
 import { BarChart3, ClipboardList, Contact, LogOut, MessageSquareText, Package, RefreshCw, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { startLogin } from "@/const";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import SiteMessage from "@/components/store/SiteMessage";
@@ -24,18 +23,50 @@ export default function AdminPage() {
   const auth = useAuth();
   const status = trpc.store.status.useQuery(undefined, { retry: false });
   const [loginError, setLoginError] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const login = trpc.auth.login.useMutation({
+    onSuccess: () => {
+      setLoginError("");
+      setPassword("");
+      void auth.refresh();
+    },
+    onError: (error) => setLoginError(error.message),
+  });
 
   if (status.isLoading || auth.loading) return <div className="page-wrap page-loading">جارٍ التحقق من صلاحية الدخول…</div>;
   if (status.isError) return <div className="page-wrap"><SiteMessage title="تعذر التحقق من إعدادات المتجر" message="تحققي من اتصال الخادم ثم حاولي مرة أخرى." action={<button className="button button-dark" onClick={() => { void status.refetch(); void auth.refresh(); }}>إعادة المحاولة <RefreshCw size={15} /></button>} /></div>;
 
-  if (!status.data?.databaseConfigured) return <div className="page-wrap"><SiteMessage title="لوحة الإدارة قيد التجهيز" message="قاعدة PostgreSQL في Neon غير مربوطة بعد. بعد إنشاء Neon وإضافة DATABASE_URL في Vercel وتشغيل الترحيلات، ستظهر هنا إدارة المنتجات والطلبات." /></div>;
-  if (!status.data?.oauthConfigured) return <div className="page-wrap"><SiteMessage title="إعداد دخول المدير مطلوب" message="أضيفي متغيرات OAuth وOWNER_OPEN_ID إلى إعدادات Vercel أولًا، ثم سجّلي عنوان العودة /api/oauth/callback لدى موفر المصادقة." /></div>;
+  if (!status.data?.adminLoginConfigured) return <div className="page-wrap"><SiteMessage title="إعداد دخول الإدارة مطلوب" message="أضيفي ADMIN_USERNAME وADMIN_PASSWORD إلى متغيرات Vercel، وتأكدي من وجود MANUS_JWT_SECRET لتوقيع الجلسة. لا حاجة إلى إعداد Manus OAuth." /></div>;
+
   if (!auth.user) return (
     <div className="page-wrap admin-login-wrap">
-      <section className="admin-login-card"><span className="admin-login-shield"><ShieldCheck size={29} /></span><span className="eyebrow">منطقة خاصة</span><h1>دخول إدارة حور</h1><p>لوحة الإدارة مخصصة لمالك المتجر المصرّح به. لا يلزم تسجيل العملاء للتسوق أو إرسال الطلبات.</p>{loginError && <div className="form-error" role="alert">{loginError}</div>}<button className="button button-dark button-full" onClick={() => { try { startLogin(); } catch (error) { setLoginError(error instanceof Error ? error.message : "تعذر بدء تسجيل الدخول."); } }}>تسجيل الدخول الآمن</button><small>تُمنح صلاحية المدير للحساب المطابق فقط لمتغير OWNER_OPEN_ID.</small></section>
+      <form className="admin-login-card admin-login-form" onSubmit={(event) => {
+        event.preventDefault();
+        setLoginError("");
+        login.mutate({ username, password });
+      }}>
+        <span className="admin-login-shield"><ShieldCheck size={29} /></span>
+        <span className="eyebrow">منطقة خاصة</span>
+        <h1>دخول إدارة حور</h1>
+        <p>اكتبي اسم المستخدم وكلمة المرور اللذين ضبطتهما في متغيرات بيئة Vercel.</p>
+        <label className="field-label">اسم المستخدم
+          <input dir="ltr" name="username" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required maxLength={128} />
+        </label>
+        <label className="field-label">كلمة المرور
+          <input dir="ltr" name="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required maxLength={256} />
+        </label>
+        {loginError && <div className="form-error" role="alert">{loginError}</div>}
+        <button className="button button-dark button-full" type="submit" disabled={login.isPending}>
+          {login.isPending ? "جارٍ تسجيل الدخول…" : "دخول لوحة الإدارة"}
+        </button>
+        <small>لا يحتاج العملاء إلى حساب لإرسال طلباتهم.</small>
+      </form>
     </div>
   );
+
   if (auth.user.role !== "admin") return <div className="page-wrap"><SiteMessage title="ليس لديكِ صلاحية الإدارة" message="هذا الحساب يستطيع تصفح المتجر فقط. تواصلي مع مالك متجر حور إذا كنتِ تحتاجين إلى صلاحية مدير." action={<button className="button button-quiet" onClick={() => void auth.logout()}>تسجيل الخروج</button>} /></div>;
+  if (!status.data.databaseConfigured) return <div className="page-wrap"><SiteMessage title="لوحة الإدارة قيد التجهيز" message="تم تسجيل الدخول، لكن قاعدة PostgreSQL في Neon غير مربوطة أو لم تُطبّق ترحيلاتها بعد. بعد إعداد DATABASE_URL وتشغيل الترحيلات ستعمل إدارة المنتجات والطلبات." /></div>;
 
   return <AdminConsole userName={auth.user.name ?? "مدير المتجر"} onLogout={() => void auth.logout().catch(() => toast.error("تعذر تسجيل الخروج."))} />;
 }

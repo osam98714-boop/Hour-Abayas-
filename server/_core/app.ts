@@ -13,9 +13,8 @@ import { hashRateLimitSubject, rateLimitBuckets } from "../public-rate-limits";
 import { isPrivateReviewBlobUrl, REVIEW_IMAGE_MAX_BYTES } from "../review-images";
 import { isCurrentOwner } from "./owner";
 import { createContext } from "./context";
-import { registerOAuthRoutes } from "./oauth";
+import { authenticateAdminRequest } from "./adminAuth";
 import { publicPlatformScript } from "./publicConfig";
-import { sdk } from "./sdk";
 
 const productUploadPayloadSchema = z.object({ purpose: z.literal("product") });
 const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -72,7 +71,7 @@ function registerProductBlobUploadRoute(app: Express) {
 
       if (body.type === "blob.generate-client-token") {
         parseProductUploadPayload(body.payload.clientPayload);
-        const user = await sdk.authenticateRequest(req);
+        const user = await authenticateAdminRequest(req);
         if (!isCurrentOwner(user)) {
           res.status(403).json({ error: "رفع صور المنتجات متاح لمالك المتجر فقط." });
           return;
@@ -196,8 +195,7 @@ function registerPrivateReviewImageRoute(app: Express) {
         return;
       }
       if (!record.approved) {
-        let user = null;
-        try { user = await sdk.authenticateRequest(req); } catch { user = null; }
+        const user = await authenticateAdminRequest(req);
         if (!isCurrentOwner(user)) {
           res.status(404).end();
           return;
@@ -245,7 +243,6 @@ export function createApp() {
     res.set("Cache-Control", "no-store").type("application/javascript").send(publicPlatformScript());
   });
 
-  registerOAuthRoutes(app);
   registerProductBlobUploadRoute(app);
   registerPrivateReviewUploadRoute(app);
   registerPrivateReviewImageRoute(app);
