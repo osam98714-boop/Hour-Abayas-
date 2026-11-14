@@ -1,8 +1,10 @@
+import { timingSafeEqual } from "node:crypto";
 import { and, asc, count, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import * as s from "../drizzle/schema";
 import { getDb } from "./db";
-import { assertOrderStatusMatchesFulfillment, getInventoryTransition } from "./order-inventory";
+import { assertOrderStatusMatchesFulfillment, canCustomerCancelOrder, getInventoryTransition } from "./order-inventory";
+import { normalizePhoneNumber } from "./public-rate-limits";
 import { isPrivateReviewBlobUrl, reviewImageEndpoint } from "./review-images";
 
 export type Category = "women" | "kids";
@@ -62,6 +64,12 @@ function toCents(value: string | number) {
 
 function fromCents(value: number) {
   return (value / 100).toFixed(2);
+}
+
+function customerPhoneMatches(storedPhone: string, submittedPhone: string) {
+  const stored = Buffer.from(normalizePhoneNumber(storedPhone));
+  const submitted = Buffer.from(normalizePhoneNumber(submittedPhone));
+  return stored.length > 0 && stored.length === submitted.length && timingSafeEqual(stored, submitted);
 }
 
 async function loadProducts(options: { category?: Category; size?: string; includeDrafts?: boolean }) {
@@ -406,6 +414,67 @@ export async function createOrder(input: {
   });
 }
 
+export async function getCustomerOrder(input: { orderCode: string; phone: string }) {
+  const db = requireDb();
+  const [order] = await db.select().from(s.orders)
+    .where(eq(s.orders.orderCode, input.orderCode.trim().toUpperCase()))
+    .limit(1);
+  if (!order || !customerPhoneMatches(order.phone, input.phone)) return null;
+
+  const items = await db.select({
+    productName: s.orderItems.productName,
+    size: s.orderItems.size,
+    quantity: s.orderItems.quantity,
+    lineTotal: s.orderItems.lineTotal,
+  }).from(s.orderItems).where(eq(s.orderItems.orderId, order.id)).orderBy(asc(s.orderItems.id));
+
+  return {
+    orderCode: order.orderCode,
+    status: order.status,
+    createdAt: order.createdAt,
+    total: order.total,
+    fulfillment: order.fulfillment,
+    items,
+  };
+}
+
+export async function cancelCustomerOrder(input: { orderCode: string; phone: string }) {
+  const db = requireDb();
+  return db.transaction(async (tx) => {
+    const [order] = await tx.select().from(s.orders)
+      .where(eq(s.orders.orderCode, input.orderCode.trim().toUpperCase()))
+      .for("update")
+      .limit(1);
+    if (!order || !customerPhoneMatches(order.phone, input.phone)) return null;
+    if (order.status === "cancelled") return { kind: "already_cancelled" as const };
+    if (!canCustomerCancelOrder(order.status)) return { kind: "too_late" as const };
+
+    const inventoryTransition = getInventoryTransition(order.status, "cancelled");
+    if (inventoryTransition === "release") {
+      const items = await tx.select().from(s.orderItems).where(eq(s.orderItems.orderId, order.id));
+      const now = new Date();
+      for (const item of items) {
+        if (!item.productId) continue;
+        await tx.insert(s.productVariants).values({
+          productId: item.productId,
+          size: item.size,
+          stock: item.quantity,
+          updatedAt: now,
+        }).onConflictDoUpdate({
+          target: [s.productVariants.productId, s.productVariants.size],
+          set: {
+            stock: sql`${s.productVariants.stock} + ${item.quantity}`,
+            updatedAt: now,
+          },
+        });
+      }
+    }
+
+    await tx.update(s.orders).set({ status: "cancelled", updatedAt: new Date() }).where(eq(s.orders.id, order.id));
+    return { kind: "cancelled" as const };
+  });
+}
+
 export async function listAdminOrders() {
   const db = requireDb();
   const rows = await db.select().from(s.orders).orderBy(desc(s.orders.createdAt)).limit(200);
@@ -479,6 +548,18 @@ export async function updateOrder(input: { id: number; status: OrderStatus; deli
       updatedAt: now,
     }).where(eq(s.orders.id, input.id));
     return true;
+  });
+}
+
+export async function deleteTerminalOrder(id: number) {
+  const db = requireDb();
+  return db.transaction(async (tx) => {
+    const [order] = await tx.select({ id: s.orders.id, orderCode: s.orders.orderCode, status: s.orders.status })
+      .from(s.orders).where(eq(s.orders.id, id)).for("update").limit(1);
+    if (!order) return null;
+    if (order.status !== "cancelled" && order.status !== "completed") throw new Error("Only terminal orders can be deleted");
+    await tx.delete(s.orders).where(eq(s.orders.id, id));
+    return { orderCode: order.orderCode, status: order.status };
   });
 }
 

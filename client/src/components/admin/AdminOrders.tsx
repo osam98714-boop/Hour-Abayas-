@@ -1,4 +1,4 @@
-import { Check, ClipboardList, ExternalLink, MapPin, Truck } from "lucide-react";
+import { Check, ClipboardList, ExternalLink, MapPin, Trash2, Truck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatSar } from "@/lib/store-types";
@@ -26,6 +26,13 @@ export default function AdminOrders() {
       await utils.admin.orders.list.invalidate();
       await utils.admin.dashboard.invalidate();
       toast.success("حُدث الطلب.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const remove = trpc.admin.orders.delete.useMutation({
+    onSuccess: async () => {
+      await Promise.all([utils.admin.orders.list.invalidate(), utils.admin.dashboard.invalidate(), utils.store.products.invalidate()]);
+      toast.success("حُذف الطلب المنتهي.");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -90,6 +97,12 @@ export default function AdminOrders() {
                     <Check size={15} /> حفظ الحالة والرسوم
                   </button>
                 </div>
+                {terminal && <div className="order-admin-delete-row"><p>يمكن حذف هذا الطلب المنتهي لتقليل السجل.</p><button type="button" className="button button-delete-order" disabled={remove.isPending} onClick={() => {
+                  const warning = order.status === "completed"
+                    ? "سيُحذف الطلب المكتمل وبنوده نهائيًا. سيقل عدد المبيعات المكتملة وقد تتغير شارة الأكثر مبيعًا. هل تريدين المتابعة؟"
+                    : "سيُحذف الطلب الملغي وبنوده نهائيًا. هل تريدين المتابعة؟";
+                  if (window.confirm(warning)) remove.mutate({ id: order.id });
+                }}><Trash2 size={14} />حذف الطلب نهائيًا</button></div>}
                 {order.status === "cancelled" && <p className="admin-panel-hint">أُلغي الطلب نهائيًا؛ أعيد المخزون إذا كان قد حُجز عند تأكيده.</p>}
                 {order.status === "completed" && <p className="admin-panel-hint">اكتمل الطلب ولا يمكن تغيير حالته.</p>}
               </article>

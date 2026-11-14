@@ -58,6 +58,7 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
           <Link href="/" className={location === "/" ? "nav-link active" : "nav-link"}>الرئيسية</Link>
           <Link href="/women" className={location === "/women" ? "nav-link active" : "nav-link"}>عبايات النساء</Link>
           <Link href="/kids" className={location === "/kids" ? "nav-link active" : "nav-link"}>عبايات الأطفال</Link>
+          <Link href="/my-order" className={location === "/my-order" ? "nav-link active" : "nav-link"}>متابعة الطلب</Link>
         </nav>
         <div className="header-actions">
           <Link href="/cart" className="cart-link" aria-label={`السلة، ${itemCount} قطعة`}>
@@ -86,6 +87,7 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
             <Link href="/women">عبايات النساء</Link>
             <Link href="/kids">عبايات الأطفال</Link>
             <Link href="/cart">سلة المشتريات</Link>
+            <Link href="/my-order">متابعة الطلب</Link>
           </div>
           <div className="footer-links-block contact-block">
             <h2>تواصلي معنا</h2>

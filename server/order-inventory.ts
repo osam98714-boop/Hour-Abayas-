@@ -3,6 +3,10 @@ import type { Fulfillment } from "../drizzle/schema";
 
 export type InventoryTransition = "none" | "reserve" | "release";
 
+export function canCustomerCancelOrder(status: OrderStatus) {
+  return status === "received" || status === "confirmed";
+}
+
 export function getInventoryTransition(current: OrderStatus, next: OrderStatus): InventoryTransition {
   if (current === "cancelled" || current === "completed") {
     throw new Error("Terminal orders cannot be reopened or changed");

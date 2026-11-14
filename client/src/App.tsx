@@ -14,6 +14,7 @@ const CategoryPage = lazy(() => import("./pages/CategoryPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const Home = lazy(() => import("./pages/Home"));
 const ProductPage = lazy(() => import("./pages/ProductPage"));
+const ManageOrderPage = lazy(() => import("./pages/ManageOrderPage"));
 
 function WomenPage() { return <CategoryPage category="women" />; }
 function KidsPage() { return <CategoryPage category="kids" />; }
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/product/:id" component={ProductPage} />
         <Route path="/cart" component={CartPage} />
         <Route path="/checkout" component={CheckoutPage} />
+        <Route path="/my-order" component={ManageOrderPage} />
         <Route path="/admin" component={AdminPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

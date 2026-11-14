@@ -41,6 +41,30 @@ function requestRateLimitError(message: string) {
   return new TRPCError({ code: "SERVICE_UNAVAILABLE", message });
 }
 
+const customerOrderInput = z.object({
+  orderCode: z.string().trim().min(8).max(32).transform((value) => value.toUpperCase()),
+  phone: z.string().trim().min(8).max(40).refine((value) => {
+    const digits = normalizePhoneNumber(value);
+    return digits.length >= 8 && digits.length <= 15;
+  }, "أدخلي رقم التواصل الذي استخدمتهِ عند الطلب."),
+});
+
+async function enforceCustomerOrderQuota(
+  input: z.infer<typeof customerOrderInput>,
+  address: string,
+  action: "lookup" | "cancel",
+) {
+  const secret = process.env.MANUS_JWT_SECRET;
+  if (!secret) throw requestRateLimitError("إعداد حماية الطلبات غير مكتمل بعد. حاولي لاحقًا.");
+  const buckets = rateLimitBuckets(`order-${action}`, Date.now());
+  const allowed = await data.consumePublicActionQuota([
+    { subjectHash: hashRateLimitSubject(`ip:${address}`, secret), bucketKey: buckets.quarterHour, limit: 12 },
+    { subjectHash: hashRateLimitSubject(`phone:${normalizePhoneNumber(input.phone)}`, secret), bucketKey: buckets.day, limit: 8 },
+    { subjectHash: hashRateLimitSubject(`code:${input.orderCode}`, secret), bucketKey: buckets.day, limit: 8 },
+  ]);
+  if (!allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "وصلت محاولات متابعة الطلب إلى الحد المؤقت. حاولي لاحقًا." });
+}
+
 const productInput = z.object({
   id: z.number().int().positive().optional(),
   name: z.string().trim().min(2).max(180),
@@ -190,6 +214,29 @@ export const appRouter = router({
           safeInternalError(error);
         }
       }),
+      lookup: publicProcedure.input(customerOrderInput).mutation(async ({ input, ctx }) => {
+        if (!isPostgresDatabaseConfigured()) throw unavailable();
+        try {
+          await enforceCustomerOrderQuota(input, ctx.req.ip || ctx.req.socket.remoteAddress || "unknown", "lookup");
+          return await data.getCustomerOrder(input);
+        } catch (error) {
+          if (error instanceof TRPCError) throw error;
+          safeInternalError(error);
+        }
+      }),
+      cancel: publicProcedure.input(customerOrderInput).mutation(async ({ input, ctx }) => {
+        if (!isPostgresDatabaseConfigured()) throw unavailable();
+        try {
+          await enforceCustomerOrderQuota(input, ctx.req.ip || ctx.req.socket.remoteAddress || "unknown", "cancel");
+          const result = await data.cancelCustomerOrder(input);
+          if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "لم نعثر على طلب يطابق الرقم ورقم التواصل المدخلين." });
+          if (result.kind === "too_late") throw new TRPCError({ code: "CONFLICT", message: "بدأ تجهيز الطلب، لذلك لا يمكن إلغاؤه من الموقع. تواصلي مع المتجر للمساعدة." });
+          return { success: true, alreadyCancelled: result.kind === "already_cancelled" } as const;
+        } catch (error) {
+          if (error instanceof TRPCError) throw error;
+          safeInternalError(error);
+        }
+      }),
     }),
     contacts: router({
       list: publicProcedure.query(async () => {
@@ -274,6 +321,20 @@ export const appRouter = router({
             };
             const conflictMessage = conflicts[error.message];
             if (conflictMessage) throw new TRPCError({ code: "CONFLICT", message: conflictMessage });
+          }
+          safeInternalError(error);
+        }
+      }),
+      delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => {
+        if (!isPostgresDatabaseConfigured()) throw unavailable();
+        try {
+          const deleted = await data.deleteTerminalOrder(input.id);
+          if (!deleted) throw new TRPCError({ code: "NOT_FOUND", message: "الطلب غير موجود." });
+          return { success: true, status: deleted.status } as const;
+        } catch (error) {
+          if (error instanceof TRPCError) throw error;
+          if (error instanceof Error && error.message === "Only terminal orders can be deleted") {
+            throw new TRPCError({ code: "CONFLICT", message: "لا يمكن حذف طلب جديد أو قيد التنفيذ؛ ألغيه أو أكمليه أولًا." });
           }
           safeInternalError(error);
         }

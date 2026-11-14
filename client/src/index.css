@@ -334,3 +334,34 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .admin-announcement-thumb { width: 48px; height: 52px; grid-row: 1 / span 2; }
   .admin-announcement-row .publish-status, .admin-announcement-row .admin-row-actions { grid-column: 2; justify-self: start; }
 }
+
+
+.customer-order-layout { display: grid; grid-template-columns: minmax(260px,.75fr) minmax(0,1.25fr); gap: 22px; align-items: start; margin: 22px 0 58px; }
+.customer-order-search, .customer-order-card, .customer-order-empty { border: 1px solid #e7e2d9; background: #fff; padding: clamp(17px,3vw,26px); }
+.customer-order-search { display: grid; gap: 13px; }
+.customer-order-search .checkout-section-heading { margin: 0 0 2px; }
+.customer-order-search .button { margin-top: 2px; }
+.customer-order-privacy { display: flex; align-items: flex-start; gap: 6px; color: #898174; font-size: 8px; margin: 0; }
+.customer-order-privacy svg { flex: 0 0 auto; color: #a3895b; }
+.customer-order-result { min-width: 0; }
+.customer-order-empty { min-height: 245px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; color: #9b8b6b; text-align: center; }
+.customer-order-empty strong { color: #454139; font-size: 13px; }
+.customer-order-empty span { color: #898276; font-size: 9px; }
+.customer-order-card-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid #eeeae4; }
+.customer-order-card-head > div { display: flex; flex-direction: column; }
+.customer-order-card-head .order-code { font-size: 12px; }
+.customer-order-date { color: #928b7f; font-size: 8px; margin: 8px 0 13px; }
+.customer-order-items { border-block: 1px solid #eeeae4; padding: 7px 0; }
+.customer-order-items > div, .customer-order-total { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; color: #625d54; font-size: 9px; }
+.customer-order-items strong, .customer-order-total strong { color: #8c7044; white-space: nowrap; }
+.customer-order-total { padding: 13px 0; font-weight: 700; }
+.customer-order-cancel-block { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 7px; padding: 12px; border: 1px solid #eee2cf; background: #fbf8f1; }
+.customer-order-cancel-block p { margin: 0; color: #746e62; font-size: 9px; }
+.button-cancel, .button-delete-order { min-height: 36px; border-color: #ead9d5; background: #fff8f7; color: #914c45; font-size: 9px; }
+.button-cancel:hover:not(:disabled), .button-delete-order:hover:not(:disabled) { border-color: #c58b83; background: #fff0ed; color: #763b36; }
+.customer-order-terminal { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 11px 12px; border: 1px solid #e8e2d7; background: #f8f6f1; color: #716b60; font-size: 9px; }
+.customer-order-terminal svg { flex: 0 0 auto; color: #9a8155; }
+.order-success-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 9px; }
+.order-admin-delete-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 9px; border-top: 1px solid #f0ece5; margin-top: 10px; padding-top: 10px; }
+.order-admin-delete-row p { margin: 0; color: #91897b; font-size: 8px; }
+@media (max-width: 760px) { .customer-order-layout { grid-template-columns: 1fr; gap: 14px; margin-top: 14px; }.customer-order-empty { min-height: 150px; } }

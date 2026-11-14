@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { assertOrderStatusMatchesFulfillment, getInventoryTransition } from "./order-inventory";
+import { assertOrderStatusMatchesFulfillment, canCustomerCancelOrder, getInventoryTransition } from "./order-inventory";
 
 describe("order inventory transitions", () => {
+  it("allows customer cancellation only before preparation starts", () => {
+    expect(canCustomerCancelOrder("received")).toBe(true);
+    expect(canCustomerCancelOrder("confirmed")).toBe(true);
+    expect(canCustomerCancelOrder("preparing")).toBe(false);
+    expect(canCustomerCancelOrder("ready_for_pickup")).toBe(false);
+    expect(canCustomerCancelOrder("out_for_delivery")).toBe(false);
+    expect(canCustomerCancelOrder("completed")).toBe(false);
+    expect(canCustomerCancelOrder("cancelled")).toBe(false);
+  });
+
   it("keeps stock available while an order is new and when that order is cancelled", () => {
     expect(getInventoryTransition("received", "received")).toBe("none");
     expect(getInventoryTransition("received", "cancelled")).toBe("none");
