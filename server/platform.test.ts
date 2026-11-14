@@ -15,10 +15,11 @@ describe("store platform integration", () => {
       MANUS_JWT_SECRET: "signing-only-test",
       DATABASE_URL: "db-only-test",
       MANUS_API_BROWSER_KEY: "public-browser-test",
+      GOOGLE_MAPS_BROWSER_KEY: "google-browser-test",
       MANUS_ANALYTICS_ENDPOINT: "https://analytics.example",
       MANUS_ANALYTICS_WEBSITE_ID: "site-test",
     };
-    expect(publicPlatformConfig(env)).toEqual({ apiUrl: "", apiBrowserKey: "public-browser-test" });
+    expect(publicPlatformConfig(env)).toEqual({ apiUrl: "", apiBrowserKey: "public-browser-test", googleMapsBrowserKey: "google-browser-test" });
     const script = publicPlatformScript(env);
     for (const value of [env.MANUS_API_KEY, env.MANUS_JWT_SECRET, env.DATABASE_URL]) expect(script).not.toContain(value);
   });
@@ -28,9 +29,11 @@ describe("store platform integration", () => {
       VERCEL_BUILD: "1",
       MANUS_API_URL: "https://forge.manus.ai",
       MANUS_API_BROWSER_KEY: "must-not-ship",
+      GOOGLE_MAPS_BROWSER_KEY: "restricted-browser-key",
     });
-    expect(config).toEqual({ apiUrl: "", apiBrowserKey: "" });
+    expect(config).toEqual({ apiUrl: "", apiBrowserKey: "", googleMapsBrowserKey: "restricted-browser-key" });
     expect(publicPlatformScript({ VERCEL: "1", MANUS_API_BROWSER_KEY: "must-not-ship" })).not.toContain("must-not-ship");
+    expect(publicPlatformScript({ VERCEL: "1", GOOGLE_MAPS_BROWSER_KEY: "restricted-browser-key" })).toContain("restricted-browser-key");
   });
 
   it("does not guess a production API when the project environment is absent", async () => {

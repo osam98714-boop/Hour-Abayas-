@@ -24,19 +24,21 @@ export async function storagePut(
 
 export async function deleteStoredImages(urls: string[]) {
   const productUrls: string[] = [];
+  const announcementUrls: string[] = [];
   const reviewUrls: string[] = [];
   for (const url of urls) {
     try {
       const parsed = new URL(url);
       if (parsed.protocol !== "https:" || !parsed.hostname.endsWith(".blob.vercel-storage.com")) continue;
       if (parsed.pathname.startsWith("/products/")) productUrls.push(url);
+      if (parsed.pathname.startsWith("/announcements/")) announcementUrls.push(url);
       if (parsed.pathname.startsWith("/reviews/")) reviewUrls.push(url);
     } catch {
       continue;
     }
   }
 
-  const deleteGroup = async (safeUrls: string[], token: string | undefined, label: "products" | "reviews") => {
+  const deleteGroup = async (safeUrls: string[], token: string | undefined, label: "products" | "announcements" | "reviews") => {
     if (!safeUrls.length || !token) return;
     try {
       await del(safeUrls, { token });
@@ -46,6 +48,7 @@ export async function deleteStoredImages(urls: string[]) {
   };
   await Promise.all([
     deleteGroup(productUrls, process.env.PRODUCT_BLOB_READ_WRITE_TOKEN, "products"),
+    deleteGroup(announcementUrls, process.env.PRODUCT_BLOB_READ_WRITE_TOKEN, "announcements"),
     deleteGroup(reviewUrls, process.env.REVIEW_BLOB_READ_WRITE_TOKEN, "reviews"),
   ]);
 }

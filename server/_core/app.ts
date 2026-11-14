@@ -16,7 +16,7 @@ import { createContext } from "./context";
 import { authenticateAdminRequest } from "./adminAuth";
 import { publicPlatformScript } from "./publicConfig";
 
-const productUploadPayloadSchema = z.object({ purpose: z.literal("product") });
+const productUploadPayloadSchema = z.object({ purpose: z.enum(["product", "announcement"]) });
 const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 const maximumProductImageSize = 12 * 1024 * 1024;
 
@@ -28,9 +28,10 @@ function parseProductUploadPayload(value: string | null) {
   return productUploadPayloadSchema.parse(JSON.parse(value));
 }
 
-function validProductUploadPath(pathname: string) {
+function validProductUploadPath(pathname: string, purpose: "product" | "announcement") {
   if (!/^[A-Za-z0-9_./-]{1,240}$/.test(pathname) || pathname.includes("..")) return false;
-  return /^products\/[A-Za-z0-9_-]{8,80}\.(?:webp|png|jpe?g)$/i.test(pathname);
+  const prefix = purpose === "announcement" ? "announcements" : "products";
+  return new RegExp(`^${prefix}/[A-Za-z0-9_-]{8,80}\\.(?:webp|png|jpe?g)$`, "i").test(pathname);
 }
 
 async function enforceReviewUploadQuota(req: Request) {
@@ -73,7 +74,7 @@ function registerProductBlobUploadRoute(app: Express) {
         parseProductUploadPayload(body.payload.clientPayload);
         const user = await authenticateAdminRequest(req);
         if (!isCurrentOwner(user)) {
-          res.status(403).json({ error: "رفع صور المنتجات متاح لمالك المتجر فقط." });
+          res.status(403).json({ error: "رفع الصور متاح لمدير المتجر فقط." });
           return;
         }
       }
@@ -83,14 +84,14 @@ function registerProductBlobUploadRoute(app: Express) {
         request: req,
         body,
         onBeforeGenerateToken: async (pathname, clientPayload) => {
-          parseProductUploadPayload(clientPayload);
-          if (!validProductUploadPath(pathname)) throw new Error("Invalid product image path");
+          const { purpose } = parseProductUploadPayload(clientPayload);
+          if (!validProductUploadPath(pathname, purpose)) throw new Error("Invalid store image path");
           return {
             allowedContentTypes: [...allowedImageTypes],
             maximumSizeInBytes: maximumProductImageSize,
             validUntil: Date.now() + 5 * 60 * 1000,
             addRandomSuffix: true,
-            tokenPayload: JSON.stringify({ purpose: "product" }),
+            tokenPayload: JSON.stringify({ purpose }),
           };
         },
       });

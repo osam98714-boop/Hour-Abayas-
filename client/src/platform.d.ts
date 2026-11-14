@@ -4,6 +4,9 @@ declare global {
     __MANUS_CONFIG__?: {
       apiUrl: string;
       apiBrowserKey: string;
+      googleMapsBrowserKey: string;
     };
+    google?: typeof google;
+    gm_authFailure?: () => void;
   }
 }

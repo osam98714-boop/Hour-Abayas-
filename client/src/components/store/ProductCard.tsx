@@ -13,6 +13,7 @@ export default function ProductCard({ product }: { product: StoreProduct }) {
           <div className="product-image-empty"><span className="empty-seal">ح</span><small>تُضاف صورة المنتج من الإدارة</small></div>
         )}
         {!available && <span className="stock-ribbon">نفد المخزون</span>}
+        {product.soldCount >= 3 && <span className="best-seller-ribbon">الأكثر مبيعًا</span>}
       </Link>
       <div className="product-card-info">
         <div className="product-card-meta"><span>{product.category === "women" ? "عبايات النساء" : "عبايات الأطفال"}</span><span>{product.images.length ? `${product.images.length} صور` : "صور قريبًا"}</span></div>

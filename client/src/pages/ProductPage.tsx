@@ -55,6 +55,12 @@ function ProductDetails({
   const ratings = product.reviews.map((review) => review.rating);
   const averageRating = ratings.length ? ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length : null;
   const availableSizes = useMemo(() => product.variants.filter((item) => item.stock > 0), [product.variants]);
+  const optionalDetails = ([
+    ["القماش", product.fabric],
+    ["التطريز", product.embroidery],
+    ["الأحجار", product.stones],
+    ["التصميم", product.design],
+  ] as const).filter(([, value]) => value.trim().length > 0);
 
   function addToCart() {
     if (!variant || variant.stock <= 0) {
@@ -76,6 +82,7 @@ function ProductDetails({
           <div className="product-main-image">
             {image ? <img src={image.url} alt={image.alt || product.name} /> : <div className="product-image-empty product-image-large"><span className="empty-seal">ح</span><small>تُضاف صورة المنتج من الإدارة</small></div>}
             {product.images.length > 1 && <><button className="gallery-arrow gallery-prev" aria-label="الصورة السابقة" onClick={() => setActiveImage((activeImage + product.images.length - 1) % product.images.length)}><ChevronRight /></button><button className="gallery-arrow gallery-next" aria-label="الصورة التالية" onClick={() => setActiveImage((activeImage + 1) % product.images.length)}><ChevronLeft /></button></>}
+            {product.soldCount >= 3 && <span className="best-seller-ribbon">الأكثر مبيعًا</span>}
           </div>
           {product.images.length > 1 && <div className="product-thumbnails">{product.images.map((item, index) => <button className={activeImage === index ? "thumbnail active" : "thumbnail"} key={item.id} onClick={() => setActiveImage(index)} aria-label={`عرض الصورة ${index + 1}`}><img src={item.url} alt="" /></button>)}</div>}
         </section>
@@ -83,7 +90,7 @@ function ProductDetails({
           <div className="product-overline"><span>{product.category === "women" ? "عبايات النساء" : "عبايات الأطفال"}</span>{averageRating !== null && <span className="rating-summary"><Star size={14} fill="currentColor" /> {averageRating.toFixed(1)} <small>({ratings.length})</small></span>}</div>
           <h1>{product.name}</h1>
           <div className="product-price">{formatSar(product.price)}</div>
-          {product.description ? <p className="product-description">{product.description}</p> : <p className="product-description muted-note">تُضاف تفاصيل هذا المنتج من لوحة الإدارة.</p>}
+          {product.description && <p className="product-description">{product.description}</p>}
           <div className="size-picker-block">
             <div className="size-picker-heading"><strong>اختاري المقاس</strong><span>{variant ? `المتوفر: ${variant.stock}` : "حددي المقاس المناسب"}</span></div>
             <div className="size-options">
@@ -103,10 +110,10 @@ function ProductDetails({
             <button className="button button-dark add-cart-button" onClick={addToCart} disabled={!availableSizes.length}><ShoppingBag size={18} /> أضيفي إلى السلة</button>
           </div>
           <div className="product-assurances"><span><ShieldCheck size={17} /> يُراجع المخزون قبل تأكيد الإدارة</span><span><Check size={17} /> استلام مجاني من المنزل</span></div>
-          <div className="product-details-list">
+          {optionalDetails.length > 0 && <div className="product-details-list">
             <h2>تفاصيل القطعة</h2>
-            {[ ["القماش", product.fabric], ["التطريز", product.embroidery], ["الأحجار", product.stones], ["التصميم", product.design] ].map(([label, value]) => <div key={label} className="detail-line"><span>{label}</span><p>{value || "تُضاف التفاصيل عند إدخال بيانات المنتج."}</p></div>)}
-          </div>
+            {optionalDetails.map(([label, value]) => <div key={label} className="detail-line"><span>{label}</span><p>{value}</p></div>)}
+          </div>}
         </section>
       </div>
       <Reviews productId={product.id} reviews={product.reviews} />

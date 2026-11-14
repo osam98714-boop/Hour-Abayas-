@@ -65,7 +65,11 @@ export default function AdminOrders() {
                 <div className="order-customer-details">
                   <div><strong>{order.customerName}</strong><a href={`tel:${order.phone}`} dir="ltr">{order.phone} <ExternalLink size={12} /></a></div>
                   <div className="fulfillment-label">{order.fulfillment === "delivery" ? <><Truck size={15} /> توصيل داخل مكة</> : <><MapPin size={15} /> استلام مجاني من المنزل</>}</div>
-                  {order.fulfillment === "delivery" && <p className="order-address">{order.address}</p>}
+                  {order.fulfillment === "delivery" && <>
+                    <p className="order-address">{order.address}</p>
+                    {(order.latitude === null || order.longitude === null) && <small className="manual-address-note">عنوان يدوي بلا دبوس؛ راجعي الموقع قبل تأكيد التوصيل.</small>}
+                    {order.latitude !== null && order.longitude !== null && <a className="order-map-link" href={`https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`} target="_blank" rel="noopener noreferrer"><MapPin size={15} /> فتح نقطة التسليم في Google Maps <small dir="ltr">{order.latitude.toFixed(6)}, {order.longitude.toFixed(6)}</small></a>}
+                  </>}
                 </div>
                 <div className="order-items-admin">
                   {order.items.map((item) => <div key={item.id}><span>{item.productName} · {item.size} × {item.quantity}</span><strong>{formatSar(item.lineTotal)}</strong></div>)}

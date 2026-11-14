@@ -1,5 +1,6 @@
 import {
   boolean,
+  doublePrecision,
   index,
   integer,
   numeric,
@@ -97,6 +98,8 @@ export const orders = pgTable(
     customerName: varchar("customer_name", { length: 140 }).notNull(),
     phone: varchar("phone", { length: 40 }).notNull(),
     address: text("address").notNull().default(""),
+    latitude: doublePrecision("latitude"),
+    longitude: doublePrecision("longitude"),
     fulfillment: fulfillmentModeEnum("fulfillment").notNull(),
     status: orderStatusEnum("status").notNull().default("received"),
     subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull(),
@@ -163,6 +166,22 @@ export const contactLinks = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   },
   (table) => [index("contact_links_active_order_idx").on(table.active, table.sortOrder)],
+);
+
+export const storeAnnouncements = pgTable(
+  "store_announcements",
+  {
+    id: serial("id").primaryKey(),
+    title: varchar("title", { length: 140 }).notNull(),
+    message: text("message").notNull(),
+    imageUrl: text("image_url"),
+    linkLabel: varchar("link_label", { length: 60 }),
+    linkUrl: text("link_url"),
+    active: boolean("active").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [index("store_announcements_active_updated_idx").on(table.active, table.updatedAt)],
 );
 
 export const publicActionRateLimits = pgTable(

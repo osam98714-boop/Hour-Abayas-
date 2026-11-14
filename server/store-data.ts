@@ -74,21 +74,29 @@ async function loadProducts(options: { category?: Category; size?: string; inclu
   if (productRows.length === 0) return [];
 
   const ids = productRows.map((product) => product.id);
-  const [images, variants] = await Promise.all([
+  const [images, variants, soldRows] = await Promise.all([
     db.select().from(s.productImages).where(inArray(s.productImages.productId, ids)).orderBy(asc(s.productImages.sortOrder)),
     db.select().from(s.productVariants).where(inArray(s.productVariants.productId, ids)).orderBy(asc(s.productVariants.id)),
+    db.select({ productId: s.orderItems.productId, soldCount: sql<number>`coalesce(sum(${s.orderItems.quantity}), 0)` })
+      .from(s.orderItems)
+      .innerJoin(s.orders, eq(s.orderItems.orderId, s.orders.id))
+      .where(and(inArray(s.orderItems.productId, ids), eq(s.orders.status, "completed")))
+      .groupBy(s.orderItems.productId),
   ]);
 
   const imageMap = new Map<number, typeof images>();
   const variantMap = new Map<number, typeof variants>();
+  const soldMap = new Map<number, number>();
   for (const image of images) imageMap.set(image.productId, [...(imageMap.get(image.productId) ?? []), image]);
   for (const variant of variants) variantMap.set(variant.productId, [...(variantMap.get(variant.productId) ?? []), variant]);
+  for (const row of soldRows) if (row.productId !== null) soldMap.set(row.productId, Number(row.soldCount));
 
   return productRows
     .map((product) => ({
       ...product,
       images: imageMap.get(product.id) ?? [],
       variants: variantMap.get(product.id) ?? [],
+      soldCount: soldMap.get(product.id) ?? 0,
     }))
     .filter((product) => {
       if (!options.size) return true;
@@ -109,10 +117,13 @@ export async function getPublicProduct(id: number) {
   const [product] = await db.select().from(s.products).where(and(eq(s.products.id, id), eq(s.products.isPublished, true))).limit(1);
   if (!product) return null;
 
-  const [images, variants, reviewRows] = await Promise.all([
+  const [images, variants, reviewRows, soldCountRows] = await Promise.all([
     db.select().from(s.productImages).where(eq(s.productImages.productId, id)).orderBy(asc(s.productImages.sortOrder)),
     db.select().from(s.productVariants).where(eq(s.productVariants.productId, id)).orderBy(asc(s.productVariants.id)),
     db.select().from(s.reviews).where(and(eq(s.reviews.productId, id), eq(s.reviews.approved, true))).orderBy(desc(s.reviews.createdAt)),
+    db.select({ soldCount: sql<number>`coalesce(sum(${s.orderItems.quantity}), 0)` }).from(s.orderItems)
+      .innerJoin(s.orders, eq(s.orderItems.orderId, s.orders.id))
+      .where(and(eq(s.orderItems.productId, id), eq(s.orders.status, "completed"))),
   ]);
   const reviewIds = reviewRows.map((review) => review.id);
   const reviewPhotoRows = reviewIds.length
@@ -125,6 +136,7 @@ export async function getPublicProduct(id: number) {
     ...product,
     images,
     variants,
+    soldCount: Number(soldCountRows[0]?.soldCount ?? 0),
     reviews: reviewRows.map((review) => ({
       ...review,
       images: (reviewPhotos.get(review.id) ?? []).map((photo) => ({ ...photo, url: reviewImageEndpoint(photo.id) })),
@@ -304,6 +316,8 @@ export async function createOrder(input: {
   customerName: string;
   phone: string;
   address: string;
+  latitude?: number | null;
+  longitude?: number | null;
   fulfillment: "delivery" | "pickup";
   items: Array<{ variantId: number; quantity: number }>;
 }) {
@@ -368,6 +382,8 @@ export async function createOrder(input: {
       customerName: input.customerName,
       phone: input.phone,
       address: input.address,
+      latitude: input.fulfillment === "delivery" ? input.latitude ?? null : null,
+      longitude: input.fulfillment === "delivery" ? input.longitude ?? null : null,
       fulfillment: input.fulfillment,
       status: "received",
       subtotal: fromCents(subtotalCents),
@@ -482,6 +498,74 @@ export async function createContactLink(input: { label: string; channel: string;
 export async function deleteContactLink(id: number) {
   const db = requireDb();
   await db.delete(s.contactLinks).where(eq(s.contactLinks.id, id));
+}
+
+export async function getActiveAnnouncement() {
+  const db = requireDb();
+  const [announcement] = await db.select({
+    id: s.storeAnnouncements.id,
+    title: s.storeAnnouncements.title,
+    message: s.storeAnnouncements.message,
+    imageUrl: s.storeAnnouncements.imageUrl,
+    linkLabel: s.storeAnnouncements.linkLabel,
+    linkUrl: s.storeAnnouncements.linkUrl,
+  }).from(s.storeAnnouncements)
+    .where(eq(s.storeAnnouncements.active, true))
+    .orderBy(desc(s.storeAnnouncements.updatedAt))
+    .limit(1);
+  return announcement ?? null;
+}
+
+export async function listAdminAnnouncements() {
+  const db = requireDb();
+  return db.select().from(s.storeAnnouncements).orderBy(desc(s.storeAnnouncements.updatedAt), desc(s.storeAnnouncements.id));
+}
+
+export async function saveAnnouncement(input: {
+  id?: number;
+  title: string;
+  message: string;
+  imageUrl: string | null;
+  linkLabel: string | null;
+  linkUrl: string | null;
+  active: boolean;
+}) {
+  const db = requireDb();
+  return db.transaction(async (tx) => {
+    const now = new Date();
+    const [existing] = input.id
+      ? await tx.select().from(s.storeAnnouncements).where(eq(s.storeAnnouncements.id, input.id)).for("update").limit(1)
+      : [];
+    if (input.id && !existing) throw new Error("Announcement not found");
+    if (input.active) {
+      await tx.update(s.storeAnnouncements).set({ active: false, updatedAt: now });
+    }
+    const values = {
+      title: input.title,
+      message: input.message,
+      imageUrl: input.imageUrl,
+      linkLabel: input.linkLabel,
+      linkUrl: input.linkUrl,
+      active: input.active,
+      updatedAt: now,
+    };
+    const [saved] = input.id
+      ? await tx.update(s.storeAnnouncements).set(values).where(eq(s.storeAnnouncements.id, input.id)).returning()
+      : await tx.insert(s.storeAnnouncements).values(values).returning();
+    return {
+      announcement: saved,
+      deletedImageUrl: existing?.imageUrl && existing.imageUrl !== input.imageUrl ? existing.imageUrl : null,
+    };
+  });
+}
+
+export async function deleteAnnouncement(id: number) {
+  const db = requireDb();
+  const [existing] = await db.select({ imageUrl: s.storeAnnouncements.imageUrl }).from(s.storeAnnouncements)
+    .where(eq(s.storeAnnouncements.id, id)).limit(1);
+  if (!existing) return null;
+  await db.delete(s.storeAnnouncements).where(eq(s.storeAnnouncements.id, id));
+  return { imageUrl: existing.imageUrl };
 }
 
 export async function getDashboardStats() {

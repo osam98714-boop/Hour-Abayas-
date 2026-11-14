@@ -21,6 +21,9 @@ const publicBlobUrlSchema = z.string().url().refine((value) => {
     return false;
   }
 }, "Image must be stored in Vercel Blob");
+const announcementBlobUrlSchema = publicBlobUrlSchema.refine((value) => {
+  try { return new URL(value).pathname.includes("/announcements/"); } catch { return false; }
+}, "Announcement image must be uploaded for announcements");
 
 function unavailable() {
   return new TRPCError({
@@ -61,12 +64,6 @@ const productInput = z.object({
   }
   if (value.isPublished && value.variants.length === 0) {
     ctx.addIssue({ code: "custom", path: ["variants"], message: "أضيفي مقاسًا ومخزونه قبل نشر المنتج." });
-  }
-  if (value.isPublished && !value.description.trim()) {
-    ctx.addIssue({ code: "custom", path: ["description"], message: "أضيفي وصفًا حقيقيًا قبل نشر المنتج." });
-  }
-  if (value.isPublished && (!value.fabric.trim() || !value.design.trim())) {
-    ctx.addIssue({ code: "custom", path: [!value.fabric.trim() ? "fabric" : "design"], message: "أضيفي تفاصيل القماش والتصميم قبل نشر المنتج." });
   }
 });
 
@@ -149,11 +146,20 @@ export const appRouter = router({
           return digits.length >= 8 && digits.length <= 15;
         }, "أدخلي رقم تواصل صالحًا."),
         address: z.string().trim().max(1000).default(""),
+        latitude: z.number().min(-90).max(90).nullable().optional(),
+        longitude: z.number().min(-180).max(180).nullable().optional(),
+        manualLocation: z.boolean().default(false),
         fulfillment: z.enum(["delivery", "pickup"]),
         items: z.array(z.object({ variantId: z.number().int().positive(), quantity: z.number().int().min(1).max(20) })).min(1).max(30),
       }).superRefine((value, ctx) => {
         if (value.fulfillment === "delivery" && value.address.length < 5) {
           ctx.addIssue({ code: "custom", path: ["address"], message: "أدخلي عنوان التوصيل داخل مكة." });
+        }
+        if (value.fulfillment === "delivery" && process.env.GOOGLE_MAPS_BROWSER_KEY && !value.manualLocation && (value.latitude == null || value.longitude == null)) {
+          ctx.addIssue({ code: "custom", path: ["latitude"], message: "حددي نقطة التوصيل على الخريطة." });
+        }
+        if ((value.latitude == null) !== (value.longitude == null)) {
+          ctx.addIssue({ code: "custom", path: ["latitude"], message: "يجب إرسال إحداثيي الموقع معًا." });
         }
       })).mutation(async ({ input, ctx }) => {
         if (!isPostgresDatabaseConfigured()) throw unavailable();
@@ -193,6 +199,12 @@ export const appRouter = router({
         } catch (error) {
           safeInternalError(error);
         }
+      }),
+    }),
+    announcements: router({
+      active: publicProcedure.query(async () => {
+        if (!isPostgresDatabaseConfigured()) return null;
+        try { return await data.getActiveAnnouncement(); } catch (error) { safeInternalError(error); }
       }),
     }),
   }),
@@ -297,6 +309,47 @@ export const appRouter = router({
       delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => {
         if (!isPostgresDatabaseConfigured()) throw unavailable();
         try { await data.deleteContactLink(input.id); return { success: true } as const; } catch (error) { safeInternalError(error); }
+      }),
+    }),
+    announcements: router({
+      list: adminProcedure.query(async () => {
+        if (!isPostgresDatabaseConfigured()) throw unavailable();
+        try { return await data.listAdminAnnouncements(); } catch (error) { safeInternalError(error); }
+      }),
+      save: adminProcedure.input(z.object({
+        id: z.number().int().positive().optional(),
+        title: z.string().trim().min(2).max(140),
+        message: z.string().trim().min(1).max(3000),
+        imageUrl: announcementBlobUrlSchema.nullable(),
+        linkLabel: z.string().trim().max(60).nullable(),
+        linkUrl: z.string().trim().url().max(1200).refine((value) => new URL(value).protocol === "https:", "Only HTTPS links are allowed").nullable(),
+        active: z.boolean(),
+      }).superRefine((value, ctx) => {
+        if (Boolean(value.linkLabel) !== Boolean(value.linkUrl)) {
+          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: "أدخلي نص الزر والرابط معًا أو اتركيهما فارغين." });
+        }
+      })).mutation(async ({ input }) => {
+        if (!isPostgresDatabaseConfigured()) throw unavailable();
+        try {
+          const result = await data.saveAnnouncement(input);
+          if (result.deletedImageUrl) await deleteStoredImages([result.deletedImageUrl]);
+          return result.announcement;
+        } catch (error) {
+          if (error instanceof Error && error.message === "Announcement not found") throw new TRPCError({ code: "NOT_FOUND", message: "الإعلان غير موجود." });
+          safeInternalError(error);
+        }
+      }),
+      delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => {
+        if (!isPostgresDatabaseConfigured()) throw unavailable();
+        try {
+          const deleted = await data.deleteAnnouncement(input.id);
+          if (!deleted) throw new TRPCError({ code: "NOT_FOUND", message: "الإعلان غير موجود." });
+          await deleteStoredImages(deleted.imageUrl ? [deleted.imageUrl] : []);
+          return { success: true } as const;
+        } catch (error) {
+          if (error instanceof TRPCError) throw error;
+          safeInternalError(error);
+        }
       }),
     }),
   }),

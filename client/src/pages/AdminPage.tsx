@@ -1,4 +1,4 @@
-import { BarChart3, ClipboardList, Contact, LogOut, MessageSquareText, Package, RefreshCw, ShieldCheck } from "lucide-react";
+import { BarChart3, ClipboardList, Contact, CreditCard, LogOut, Megaphone, MessageSquareText, Package, RefreshCw, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -9,14 +9,18 @@ import AdminProducts from "@/components/admin/AdminProducts";
 import AdminOrders from "@/components/admin/AdminOrders";
 import AdminReviews from "@/components/admin/AdminReviews";
 import AdminContacts from "@/components/admin/AdminContacts";
+import AdminAnnouncements from "@/components/admin/AdminAnnouncements";
+import AdminPayments from "@/components/admin/AdminPayments";
 
-type Tab = "overview" | "products" | "orders" | "reviews" | "contacts";
+type Tab = "overview" | "products" | "orders" | "reviews" | "contacts" | "announcements" | "payments";
 const tabs: Array<{ id: Tab; label: string; icon: typeof BarChart3 }> = [
   { id: "overview", label: "نظرة عامة", icon: BarChart3 },
   { id: "products", label: "المنتجات", icon: Package },
   { id: "orders", label: "الطلبات", icon: ClipboardList },
   { id: "reviews", label: "التقييمات", icon: MessageSquareText },
   { id: "contacts", label: "التواصل", icon: Contact },
+  { id: "announcements", label: "الإعلانات", icon: Megaphone },
+  { id: "payments", label: "الدفع", icon: CreditCard },
 ];
 
 export default function AdminPage() {
@@ -79,7 +83,7 @@ function AdminConsole({ userName, onLogout }: { userName: string; onLogout: () =
       <div className="admin-heading"><div><span className="eyebrow">لوحة إدارة حور</span><h1>{activeLabel}</h1><p>مرحبًا، {userName} — من هنا تُدار بيانات المتجر وطلباته.</p></div><button className="button button-quiet logout-button" onClick={onLogout}><LogOut size={15} /> تسجيل الخروج</button></div>
       <div className="admin-workspace">
         <nav className="admin-sidebar" aria-label="أقسام إدارة المتجر">{tabs.map(({ id, label, icon: Icon }) => <button key={id} type="button" className={tab === id ? "admin-tab active" : "admin-tab"} onClick={() => setTab(id)}><Icon size={17} /><span>{label}</span></button>)}<div className="admin-sidebar-note"><ShieldCheck size={16} /><span>بيانات الإدارة لا تظهر للزوار.</span></div></nav>
-        <section className="admin-content">{tab === "overview" && <AdminOverview />}{tab === "products" && <AdminProducts />}{tab === "orders" && <AdminOrders />}{tab === "reviews" && <AdminReviews />}{tab === "contacts" && <AdminContacts />}</section>
+        <section className="admin-content">{tab === "overview" && <AdminOverview />}{tab === "products" && <AdminProducts />}{tab === "orders" && <AdminOrders />}{tab === "reviews" && <AdminReviews />}{tab === "contacts" && <AdminContacts />}{tab === "announcements" && <AdminAnnouncements />}{tab === "payments" && <AdminPayments />}</section>
       </div>
     </div>
   );

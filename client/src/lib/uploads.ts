@@ -33,7 +33,7 @@ async function compressIfNeeded(file: File, maxBytes: number): Promise<File> {
   return new File([blob], `${file.name.replace(/\.[^.]+$/, "")}.webp`, { type: "image/webp", lastModified: Date.now() });
 }
 
-export async function uploadStoreImage(file: File, purpose: "product" | "review", productId?: number) {
+export async function uploadStoreImage(file: File, purpose: "product" | "review" | "announcement", productId?: number) {
   if (purpose === "review") {
     if (!Number.isSafeInteger(productId) || !productId || productId < 1) throw new Error("معرّف المنتج غير صالح.");
     const prepared = await compressIfNeeded(file, REVIEW_MAX_BYTES);
@@ -48,12 +48,13 @@ export async function uploadStoreImage(file: File, purpose: "product" | "review"
   }
 
   const prepared = await compressIfNeeded(file, PRODUCT_MAX_BYTES);
-  const pathname = `products/${crypto.randomUUID()}.${extensionFor(prepared.type)}`;
+  const prefix = purpose === "announcement" ? "announcements" : "products";
+  const pathname = `${prefix}/${crypto.randomUUID()}.${extensionFor(prepared.type)}`;
   const result = await upload(pathname, prepared, {
     access: "public",
     contentType: prepared.type,
     handleUploadUrl: "/api/blob/upload",
-    clientPayload: JSON.stringify({ purpose: "product" }),
+    clientPayload: JSON.stringify({ purpose }),
     multipart: false,
   });
   return result.url;
